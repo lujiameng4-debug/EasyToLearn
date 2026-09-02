@@ -1,0 +1,7 @@
+npm warn Unknown env config "devdir". This will stop working in the next major version of npm.
+
+> backend@1.0.0 start
+> node server.js
+
+🚀 Backend is running on http://localhost:3000
+- Fetch sentences: http://localhost:3000/api/curriculum

@@ -1,0 +1,65 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// 对应题库模块的类别
+model Curriculum {
+  id          String     @id @default(uuid())
+  title       String
+  description String
+  sentences   Sentence[]
+}
+
+// 对应具体的每一道题
+model Sentence {
+  id           String     @id @default(uuid())
+  curriculumId String
+  curriculum   Curriculum @relation(fields: [curriculumId], references: [id])
+  chinese      String
+  english_full String
+  words        String     // JSON array of words
+  components   String     // JSON array of grammar components
+  analysis     String     // JSON array of analysis items
+  progress     UserProgress[]
+}
+
+// 用户学习进度表（间隔重复系统 SRS）
+model UserProgress {
+  id             String   @id @default(uuid())
+  userId         String   @default("local_user") // 单机版默认用户
+  sentenceId     String
+  sentence       Sentence @relation(fields: [sentenceId], references: [id])
+  status         String   @default("learning")   // 状态：learning(学习中), review(复习中), mastered(已掌握)
+  reviewCount    Int      @default(0)            // 成功复习的连续次数（决定下次复习间隔）
+  nextReviewDate DateTime @default(now())        // 下一次需要复习的时间
+  lastReviewDate DateTime @default(now())        // 上一次复习的时间
+  failCount      Int      @default(0)            // 累计做错的次数
+
+  @@unique([userId, sentenceId])
+}
+
+// 用户全局统计（Streak等）
+model User {
+  id             String   @id @default(uuid())
+  userId         String   @unique @default("local_user")
+  lastActiveDate String?  // 'YYYY-MM-DD'
+  currentStreak  Int      @default(0)
+}
+
+// 每日做题统计（用于热力图）
+model DailyStats {
+  id        String   @id @default(uuid())
+  userId    String   @default("local_user")
+  date      String   // 'YYYY-MM-DD'
+  count     Int      @default(0)
+
+  @@unique([userId, date])
+}
