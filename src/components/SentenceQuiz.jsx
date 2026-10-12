@@ -1,17 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { playKeypress, playError, playSuccess } from '../utils/audio';
 
-const transferGuides = {
-  position: '换一个具体议题，写清你的立场和适用范围。',
-  cause: '换一个现象，解释它为什么发生，而不只替换名词。',
-  effect: '说明谁受到影响，以及影响是怎样产生的。',
-  example: '为你的观点设计一个具体、可信的情境。',
-  contrast: '明确比较对象，并说出真正影响判断的差异。',
-  concession: '承认一项合理顾虑，再回应它为什么不足以推翻观点。',
-  conclusion: '根据前面的理由提出有限定条件的建议。',
-};
-const normalizeExpression = (text) => text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-
 const SentenceQuiz = ({ question, onComplete, onMistake, theme, isAnalysisMode, difficulty, isMastered }) => {
   const { chinese, words, components } = question;
   
@@ -165,19 +154,6 @@ const SentenceQuiz = ({ question, onComplete, onMistake, theme, isAnalysisMode, 
   const [speechScore, setSpeechScore] = useState(null);
   const [recognizedWords, setRecognizedWords] = useState([]);
   const transcriptRef = useRef('');
-  const [transferDraft, setTransferDraft] = useState(() => {
-    if (!question.scenario || !question.argumentFunction) return '';
-    return localStorage.getItem(`easyToLearn_transfer_${question.id}`) || '';
-  });
-  const transferMatchesReference = Boolean(transferDraft.trim()) && normalizeExpression(transferDraft) === normalizeExpression(question.english_full || '');
-
-  const updateTransferDraft = (value) => {
-    setTransferDraft(value);
-    if (value) localStorage.setItem(`easyToLearn_transfer_${question.id}`, value);
-    else localStorage.removeItem(`easyToLearn_transfer_${question.id}`);
-    window.dispatchEvent(new Event('easyToLearn:transferDraftChanged'));
-  };
-
   const playWordAudio = (word, type, e) => {
     if (e) {
       e.stopPropagation();
@@ -984,31 +960,6 @@ const SentenceQuiz = ({ question, onComplete, onMistake, theme, isAnalysisMode, 
             )}
           </div>
 
-          {question.scenario && question.argumentFunction && (
-            <div className={`mt-8 w-full max-w-2xl rounded-2xl border ${theme.secondary} p-5 text-left`}>
-              <div className="flex items-center justify-between gap-3">
-                <h3 className={`text-sm font-semibold ${theme.text}`}>迁移到你的作文</h3>
-                {transferDraft && (
-                  <button type="button" onClick={() => updateTransferDraft('')} className={`text-xs ${theme.accent} hover:underline`}>清空草稿</button>
-                )}
-              </div>
-              <p className={`mt-2 text-xs leading-relaxed ${theme.accent}`}>
-                参考上面的表达结构，换一个具体话题写出自己的英文句子。草稿只保存在本设备，不会自动评分。
-              </p>
-              <p className={`mt-2 text-xs leading-relaxed ${theme.text}`}>改写提示：{transferGuides[question.argumentFunction]}</p>
-              <textarea
-                aria-label="迁移写作草稿"
-                value={transferDraft}
-                onChange={(event) => updateTransferDraft(event.target.value)}
-                placeholder="在这里写下你的英文句子…"
-                rows={3}
-                className={`mt-4 w-full resize-y rounded-xl border ${theme.secondary} bg-transparent px-4 py-3 text-sm leading-relaxed ${theme.text} outline-none focus:ring-2 focus:ring-indigo-500/40`}
-              />
-              <p className={`mt-1 text-right text-[11px] ${theme.accent}`}>{transferDraft.trim().split(/\s+/).filter(Boolean).length} 词</p>
-              {transferMatchesReference && <p role="status" className="mt-2 text-xs text-amber-700 dark:text-amber-300">这句话与参考句相同。试着换成与你要讨论的话题相关的对象、原因或例子。</p>}
-            </div>
-          )}
-          
           {/* Speech Recognition Section */}
           <div className={`w-full flex flex-col items-center mt-2 pt-2 border-t border-black/10 dark:border-white/20 transition-all duration-700 delay-300 ${isAnalysisMode ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
             <button

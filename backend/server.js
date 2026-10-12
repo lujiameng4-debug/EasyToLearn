@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
 import { validateReviewUpdate, validateStatsSync } from './validation.js';
-import { evaluateParagraph } from './writingEvaluation.js';
 
 const app = express();
 const prisma = new PrismaClient();
@@ -10,7 +9,6 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-app.post('/api/writing/evaluate', evaluateParagraph);
 
 // Lightweight readiness check for local, CI, and deployment monitors.
 app.get('/api/health', async (req, res) => {
@@ -128,10 +126,14 @@ app.get('/api/dictionary', async (req, res) => {
 app.get('/api/curriculum', async (req, res) => {
   try {
     const curriculums = await prisma.curriculum.findMany({
+      orderBy: { id: 'asc' },
       include: {
-        sentences: true
+        sentences: { orderBy: { id: 'asc' } }
       }
     });
+    if (!curriculums.length || curriculums.some(cur => cur.sentences.length !== 100)) {
+      return res.status(503).json({ error: 'Curriculum is incomplete. Run npm run db:seed.' });
+    }
     
     // 解析 JSON 字段，还原为前端所需的结构
     const formattedData = curriculums.map(cur => ({

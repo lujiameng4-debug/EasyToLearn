@@ -75,7 +75,7 @@ export const extensions = {
       ],
       analysis: [
         { type: "语法", text: "it 作形式主语，真正的主语是 that 引导的从句，以避免头重脚轻。" },
-        { type: "佳句赏析", text: "It is universally acknowledged that... (普遍认为...)，常用于雅思大作文开头。" }
+        { type: "佳句赏析", text: "It is universally acknowledged that... 表示“普遍认为”。" }
       ]
     },
     {

@@ -1,10 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import SentenceQuiz from './components/SentenceQuiz';
-import ParagraphPractice from './components/ParagraphPractice';
-import TransferDrafts from './components/TransferDrafts';
-import WritingBackup from './components/WritingBackup';
-import { curriculum, customModuleTemplate } from './data/sentences';
-import { writingPracticeCurriculum } from './data/writingPractice';
+import { customModuleTemplate } from './data/sentences';
 import { parseRawTextToLibrary, stringifyLibraryToRawText } from './utils/parser';
 
 // Define the Zen Themes
@@ -37,62 +33,6 @@ const THEMES = [
     secondary: 'border-[#1E293B] dark:border-[#1E293B]',
   }
 ];
-
-const WRITING_SCENARIOS = [
-  { id: 'all', title: '全部场景', topics: ['全部主题'], description: '从常见大作文话题中挑选表达练习。' },
-  { id: 'education', title: '教育与成长', topics: ['教育', '学校', '学习', '成长', '教育公平'], description: '教育制度、学习方式与个人发展的论述表达。' },
-  { id: 'technology', title: '科技与社会', topics: ['科技', '技术', '人工智能', '互联网', '媒体'], description: '科技影响、数字生活与社会变化。' },
-  { id: 'environment', title: '环境与城市', topics: ['环境', '城市', '交通', '能源', '可持续'], description: '环境治理、城市建设与公共资源议题。' },
-  { id: 'health', title: '健康与生活', topics: ['健康', '医疗', '运动', '饮食', '生活方式'], description: '公共健康、个人习惯与生活质量。' },
-  { id: 'work', title: '工作与经济', topics: ['工作', '经济', '就业', '金融', '消费'], description: '职业发展、经济变化与消费选择。' },
-  { id: 'society', title: '文化与社会', topics: ['社会', '文化', '艺术', '政府', '家庭'], description: '文化价值、社会责任与公共政策。' },
-];
-
-const ARGUMENT_FUNCTIONS = [
-  { id: 'all', title: '全部功能', hint: '浏览所有表达' },
-  { id: 'position', title: '提出观点', hint: '表明立场与主张' },
-  { id: 'cause', title: '分析原因', hint: '解释成因与机制' },
-  { id: 'effect', title: '讨论影响', hint: '说明结果与后果' },
-  { id: 'example', title: '举例论证', hint: '用事实支撑观点' },
-  { id: 'contrast', title: '比较对照', hint: '呈现差异与权衡' },
-  { id: 'concession', title: '让步反驳', hint: '承认限制并回应' },
-  { id: 'conclusion', title: '总结建议', hint: '归纳并提出方向' },
-];
-
-const getModuleScenario = (module) => {
-  const text = `${module?.id || ''} ${module?.title || ''} ${module?.description || ''}`.toLowerCase();
-  if (/educ|school|edu|教育|学校|学习/.test(text)) return 'education';
-  if (/tech|科技|技术|人工智能|互联网/.test(text)) return 'technology';
-  if (/env|airport|travel|hotel|城市|环境|交通|能源|旅游/.test(text)) return 'environment';
-  if (/health|hospital|sports|健康|医疗|运动/.test(text)) return 'health';
-  if (/work|finance|shopping|工作|经济|金融|消费|就业/.test(text)) return 'work';
-  if (/art|gov|dining|文化|艺术|政府|社会|家庭/.test(text)) return 'society';
-  return 'general';
-};
-
-const getSentenceScenario = (sentence, fallbackScenario = 'general') => {
-  if (sentence?.scenario) return sentence.scenario;
-  const text = `${sentence?.english_full || ''} ${sentence?.chinese || ''}`.toLowerCase();
-  if (/education|school|student|teacher|learn|教育|学校|学生|教师|学习|成长/.test(text)) return 'education';
-  if (/technology|technological|artificial intelligence|internet|digital|科技|技术|人工智能|互联网|数字化/.test(text)) return 'technology';
-  if (/environment|climate|pollution|sustainable|urban|transport|能源|环境|气候|污染|可持续|城市|交通/.test(text)) return 'environment';
-  if (/health|medical|hospital|exercise|diet|健康|医疗|医院|运动|饮食/.test(text)) return 'health';
-  if (/work|employment|career|economy|economic|finance|消费|工作|就业|职业|经济|金融/.test(text)) return 'work';
-  if (/culture|cultural|society|government|community|family|art|文化|社会|政府|社区|家庭|艺术/.test(text)) return 'society';
-  return fallbackScenario;
-};
-
-const getArgumentFunction = (sentence) => {
-  if (sentence?.argumentFunction) return sentence.argumentFunction;
-  const text = `${sentence?.english_full || ''} ${sentence?.chinese || ''} ${(sentence?.analysis || []).map(item => typeof item === 'string' ? item : `${item?.type || ''} ${item?.text || item?.description || ''}`).join(' ')}`.toLowerCase();
-  if (/although|while|whereas|however|despite|尽管|然而|相较|相比/.test(text)) return 'concession';
-  if (/for example|for instance|such as|例如|举例|案例/.test(text)) return 'example';
-  if (/therefore|consequently|as a result|lead to|result in|影响|导致|结果|后果/.test(text)) return 'effect';
-  if (/because|due to|owing to|原因|由于|成因/.test(text)) return 'cause';
-  if (/in conclusion|to conclude|overall|therefore|总之|综上|建议/.test(text)) return 'conclusion';
-  if (/on the one hand|by contrast|compared with|相比|相反|对比/.test(text)) return 'contrast';
-  return 'position';
-};
 
 const getModuleIcon = (id) => {
   const props = {
@@ -166,10 +106,8 @@ function App() {
   
   // NEW: Fetch modules from the backend
   const [modules, setModules] = useState([]); // Start empty, will fetch others
+  const [curriculumError, setCurriculumError] = useState('');
   const [dueReviews, setDueReviews] = useState([]); // SRS due reviews
-  const [selectedScenario, setSelectedScenario] = useState('all');
-  const [selectedFunction, setSelectedFunction] = useState('all');
-  const [paragraphTransferTarget, setParagraphTransferTarget] = useState(null);
 
 
   // 5. State for Global Stats (Heatmap & Streak)
@@ -233,14 +171,21 @@ function App() {
   useEffect(() => {
     // Fetch standard curriculum
     fetch('/api/curriculum')
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error('题库加载失败，请确认后端已启动并完成题库初始化。');
+        return res.json();
+      })
       .then(data => {
-        setModules([...data, writingPracticeCurriculum]);
+        if (!Array.isArray(data) || !data.length || data.some((module) => module.sentences?.length !== 100)) {
+          throw new Error('题库数据不完整，请运行 npm run db:seed 后刷新页面。');
+        }
+        setModules(data);
+        setCurriculumError('');
         setIsDataLoaded(true);
       })
       .catch(err => {
-        console.error("Backend not running, falling back to local data", err);
-        setModules([...curriculum, writingPracticeCurriculum]);
+        console.error('Failed to load curriculum', err);
+        setCurriculumError(err.message);
         setIsDataLoaded(true);
       });
 
@@ -252,21 +197,7 @@ function App() {
   }, [fetchDueReviews, fetchGlobalStats]);
 
   // Derived list of all available modules
-  const allModules = [...modules, customModule];
-  const visibleModules = allModules.map((module) => {
-    const scenario = getModuleScenario(module);
-    const sentences = (module.sentences || []).filter((sentence) =>
-      (selectedScenario === 'all' || getSentenceScenario(sentence, scenario) === selectedScenario) &&
-      (selectedFunction === 'all' || getArgumentFunction(sentence) === selectedFunction)
-    );
-    return { ...module, sentences };
-  }).filter((module) => module.sentences.length > 0);
-  const selectedScenarioInfo = WRITING_SCENARIOS.find((scenario) => scenario.id === selectedScenario) || WRITING_SCENARIOS[0];
-  const selectedFunctionInfo = ARGUMENT_FUNCTIONS.find((item) => item.id === selectedFunction) || ARGUMENT_FUNCTIONS[0];
-  const essaySelection = writingPracticeCurriculum.sentences.filter((sentence) =>
-    (selectedScenario === 'all' || sentence.scenario === selectedScenario) &&
-    (selectedFunction === 'all' || sentence.argumentFunction === selectedFunction)
-  );
+  const visibleModules = modules;
 
   // --- Session & Review State ---
   const [isSessionComplete, setIsSessionComplete] = useState(false);
@@ -274,13 +205,6 @@ function App() {
   const [stats, setStats] = useState({ flaws: 0, timeSeconds: 0 });
   const sessionActiveRef = useRef(false);
   const completedInSessionRef = useRef(new Set());
-  const returnToParagraphRef = useRef(false);
-
-  useEffect(() => {
-    if (currentView !== 'dashboard' || !returnToParagraphRef.current) return;
-    returnToParagraphRef.current = false;
-    requestAnimationFrame(() => document.getElementById('paragraph-practice-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-  }, [currentView]);
   
   // NEW: State for showing analysis after a sentence is completed
   const [showAnalysis, setShowAnalysis] = useState(false);
@@ -317,8 +241,6 @@ function App() {
     }
     return {}; // Format: { [sentence_id]: 'practiced' | 'mastered' | 'unfamiliar' }
   });
-  const essayToPractice = essaySelection.filter((sentence) => userProgress[sentence.id] !== 'mastered');
-  const essayMasteredCount = essaySelection.length - essayToPractice.length;
   
   const userProgressRef = useRef(userProgress);
   useEffect(() => {
@@ -590,7 +512,7 @@ function App() {
     return () => window.removeEventListener('keydown', handleGlobalKey);
   }, [currentView, isSessionComplete, showAnalysis, isTransitioning, library, startNewSession, currentQuestion, speakSentence, showToast, fetchDueReviews]);
 
-  const startModule = (mod, returnTarget = null) => {
+  const startModule = (mod) => {
     if (!mod.sentences || mod.sentences.length === 0) {
       if (mod.id === 'module_custom') {
         setActiveModule(mod);
@@ -601,7 +523,6 @@ function App() {
       alert("This module has no sentences yet!");
       return;
     }
-    returnToParagraphRef.current = returnTarget === 'paragraph';
     setActiveModule(mod);
     setCurrentView('quiz');
     startNewSession(mod.sentences);
@@ -963,9 +884,9 @@ function App() {
               {/* Title */}
               <div className="flex flex-col items-center justify-center w-full md:w-1/3">
                 <h1 className={`text-4xl md:text-5xl font-bold tracking-tight text-center leading-none ${currentTheme.text}`}>
-                  Academic Writing
+                  EasyToLearn
                 </h1>
-                <p className={`mt-3 text-sm tracking-wide ${currentTheme.accent}`}>大作文场景表达训练</p>
+                <p className={`mt-3 text-sm tracking-wide ${currentTheme.accent}`}>句子练习 · 每个模块 100 题</p>
               </div>
 
               {/* Current Month Activity Matrix */}
@@ -1007,137 +928,11 @@ function App() {
               </div>
             </div>
             
-            <section className={`mb-10 rounded-3xl border ${currentTheme.secondary} ${currentTheme.cardBg} p-6 md:p-8`}>
-              <div className="flex flex-col gap-2 mb-6">
-                <span className={`text-[11px] font-mono tracking-[0.2em] uppercase ${currentTheme.accent}`}>Build an argument, one expression at a time</span>
-                <h2 className={`text-xl md:text-2xl font-semibold ${currentTheme.text}`}>今天想练哪类话题？</h2>
-                <p className={`text-sm ${currentTheme.accent}`}>{selectedScenarioInfo.description}</p>
-              </div>
-              <div className="flex flex-wrap gap-2 mb-7" role="group" aria-label="选择作文场景">
-                {WRITING_SCENARIOS.map((scenario) => (
-                  <button key={scenario.id} onClick={() => setSelectedScenario(scenario.id)} aria-pressed={selectedScenario === scenario.id}
-                    className={`rounded-full px-4 py-2 text-sm transition-colors ${selectedScenario === scenario.id ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900' : `border ${currentTheme.secondary} ${currentTheme.accent} hover:${currentTheme.text}`}`}>
-                    {scenario.title}
-                  </button>
-                ))}
-              </div>
-              <div className="flex flex-col md:flex-row md:items-center gap-3">
-                <span className={`text-xs font-mono tracking-widest uppercase shrink-0 ${currentTheme.accent}`}>论证功能</span>
-                <div className="flex flex-wrap gap-2">
-                  {ARGUMENT_FUNCTIONS.map((item) => (
-                    <button key={item.id} onClick={() => setSelectedFunction(item.id)} aria-pressed={selectedFunction === item.id}
-                      title={item.hint}
-                      className={`rounded-xl px-3 py-2 text-xs transition-colors ${selectedFunction === item.id ? 'bg-indigo-600 text-white shadow-sm' : `bg-black/[0.04] dark:bg-white/[0.06] ${currentTheme.accent} hover:${currentTheme.text}`}`}>
-                      {item.title}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className={`mt-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 rounded-2xl border ${currentTheme.secondary} p-4 md:p-5`}>
-                <div>
-                  <p className={`text-sm font-medium ${currentTheme.text}`}>
-                    {selectedScenarioInfo.title} · {selectedFunctionInfo.title}
-                  </p>
-                  <p className={`mt-1 text-xs ${currentTheme.accent}`}>
-                    {essaySelection.length} 条大作文表达 · 已掌握 {essayMasteredCount} 条 · {selectedFunctionInfo.hint}。完成后可写自己的迁移句。
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => startModule({ ...writingPracticeCurriculum, title: `${selectedScenarioInfo.title} · ${selectedFunctionInfo.title} · 待加强`, sentences: essayToPractice })}
-                    disabled={essayToPractice.length === 0}
-                    className={`rounded-xl border ${currentTheme.secondary} px-4 py-3 text-sm font-medium ${currentTheme.text} transition-colors hover:bg-black/5 dark:hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50`}
-                  >
-                    练未掌握表达 ({essayToPractice.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => startModule({ ...writingPracticeCurriculum, title: `${selectedScenarioInfo.title} · ${selectedFunctionInfo.title}`, sentences: essaySelection })}
-                    disabled={essaySelection.length === 0}
-                    className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    练习全部 →
-                  </button>
-                </div>
-              </div>
-              <div className={`mt-6 border-t ${currentTheme.secondary} pt-5`}>
-                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                  <h3 className={`text-sm font-semibold ${currentTheme.text}`}>论证表达覆盖图</h3>
-                  <p className={`text-xs ${currentTheme.accent}`}>答对记为已练习，出错记为待加强；手动标记“掌握”后计入掌握数。</p>
-                </div>
-                <div className="overflow-x-auto pb-1">
-                  <div className="min-w-[690px] grid grid-cols-[100px_repeat(7,minmax(72px,1fr))] gap-1.5 text-center">
-                    <span aria-hidden="true" />
-                    {ARGUMENT_FUNCTIONS.slice(1).map((item) => <span key={item.id} className={`px-1 py-2 text-[11px] ${currentTheme.accent}`}>{item.title}</span>)}
-                    {WRITING_SCENARIOS.slice(1).map((scenario) => (
-                      <React.Fragment key={scenario.id}>
-                        <span className={`flex items-center text-left text-xs ${currentTheme.text}`}>{scenario.title}</span>
-                        {ARGUMENT_FUNCTIONS.slice(1).map((item) => {
-                          const sentences = writingPracticeCurriculum.sentences.filter((entry) => entry.scenario === scenario.id && entry.argumentFunction === item.id);
-                          const mastered = sentences.filter((entry) => userProgress[entry.id] === 'mastered').length;
-                          const practiced = sentences.filter((entry) => Boolean(userProgress[entry.id])).length;
-                          const needsReview = sentences.some((entry) => userProgress[entry.id] === 'unfamiliar');
-                          const status = mastered === sentences.length ? 'mastered' : needsReview ? 'unfamiliar' : practiced > 0 ? 'practiced' : null;
-                          const label = status === 'mastered' ? '已掌握' : status === 'unfamiliar' ? '待加强' : status === 'practiced' ? '已练习' : '未练习';
-                          return <button
-                            key={item.id}
-                            type="button"
-                            disabled={sentences.length === 0}
-                            aria-label={`${scenario.title}，${item.title}，${label}，练习 ${practiced}/${sentences.length}，掌握 ${mastered}/${sentences.length}，开始练习`}
-                            title={`${scenario.title} · ${item.title} · 练习 ${practiced}/${sentences.length} · 掌握 ${mastered}/${sentences.length}`}
-                            onClick={() => startModule({ ...writingPracticeCurriculum, title: `${scenario.title} · ${item.title}`, sentences })}
-                            className={`rounded-lg px-1 py-2 text-[11px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${status === 'mastered' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25' : status === 'unfamiliar' ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25' : status === 'practiced' ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/25' : `bg-black/[0.04] dark:bg-white/[0.06] ${currentTheme.accent} hover:bg-indigo-500/15`}`}
-                          ><span className="block">{label} {practiced}/{sentences.length}</span><span className="block text-[10px] opacity-75">掌握 {mastered}/{sentences.length}</span></button>;
-                        })}
-                      </React.Fragment>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <ParagraphPractice
-              scenarios={WRITING_SCENARIOS}
-              functions={ARGUMENT_FUNCTIONS}
-              sentences={writingPracticeCurriculum.sentences}
-              selectedScenario={selectedScenario}
-              transferTarget={paragraphTransferTarget}
-              userProgress={userProgress}
-              onPracticeFunction={(scenarioId, functionId) => {
-                const practiceSentences = writingPracticeCurriculum.sentences.filter((entry) => entry.scenario === scenarioId && entry.argumentFunction === functionId);
-                const functionTitle = ARGUMENT_FUNCTIONS.find((item) => item.id === functionId)?.title || '论证表达';
-                startModule({ ...writingPracticeCurriculum, title: `${WRITING_SCENARIOS.find((item) => item.id === scenarioId)?.title} · ${functionTitle}`, sentences: practiceSentences }, 'paragraph');
-              }}
-              theme={currentTheme}
-            />
-
-            <TransferDrafts
-              sentences={writingPracticeCurriculum.sentences}
-              scenarios={WRITING_SCENARIOS}
-              functions={ARGUMENT_FUNCTIONS}
-              selectedScenario={selectedScenario}
-              selectedFunction={selectedFunction}
-              theme={currentTheme}
-              onPractice={(sentence) => startModule({ ...writingPracticeCurriculum, title: '迁移表达复练', sentences: [sentence] })}
-              onUseInParagraph={(sentence) => setParagraphTransferTarget({ sentenceId: sentence.id, scenario: sentence.scenario, functionId: sentence.argumentFunction })}
-            />
-
-            <WritingBackup sentences={writingPracticeCurriculum.sentences} theme={currentTheme} />
-
-            <div className="mb-4 flex items-end justify-between gap-3">
-              <div>
-                <h2 className={`text-lg font-semibold ${currentTheme.text}`}>{selectedScenario === 'all' ? '练习模块' : `${selectedScenarioInfo.title} · 练习模块`}</h2>
-                <p className={`mt-1 text-xs ${currentTheme.accent}`}>选择模块开始练习，学习进度会保存在本设备。</p>
-              </div>
-              {(selectedScenario !== 'all' || selectedFunction !== 'all') && <button className={`text-xs underline underline-offset-4 ${currentTheme.accent}`} onClick={() => { setSelectedScenario('all'); setSelectedFunction('all'); }}>清除筛选</button>}
-            </div>
-            <div className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-              {/* Daily Review Card */}
-              {dueReviews.length > 0 && (
+            {dueReviews.length > 0 && (
+              <div className="mb-8">
                 <button
                   onClick={() => startModule({ id: 'module_review', title: '今日复习 (Review Due)', sentences: dueReviews })}
-                  className={`col-span-1 sm:col-span-2 md:col-span-3 lg:col-span-4 group relative flex items-center justify-between gap-4 px-8 py-6 rounded-2xl transition-all duration-500 ease-out overflow-hidden
+                  className={`w-full group relative flex items-center justify-between gap-4 px-8 py-6 rounded-2xl transition-all duration-500 ease-out overflow-hidden
                     ${currentTheme.id === 'mono' ? 'bg-black text-white dark:bg-white dark:text-black' : (currentTheme.id === 'paper' ? 'bg-[#4A3C31] text-[#F4EFE6]' : 'bg-[#E2E8F0] text-[#0B0F19]')}
                     shadow-lg hover:shadow-xl hover:-translate-y-1
                   `}
@@ -1166,20 +961,25 @@ function App() {
                     </div>
                   </div>
                 </button>
-              )}
-
-              {visibleModules.length === 0 && (
+              </div>
+            )}
+            <div className="mb-4 flex items-end justify-between gap-3">
+              <div>
+                <h2 className={`text-lg font-semibold ${currentTheme.text}`}>练习模块</h2>
+                <p className={`mt-1 text-xs ${currentTheme.accent}`}>{isDataLoaded ? `共 ${visibleModules.length} 个模块，每个模块 100 道句子题。选择模块开始练习。` : '正在加载句子题库…'}</p>
+              </div>
+            </div>
+            <div className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+              {curriculumError && (
                 <div className={`col-span-full rounded-2xl border border-dashed ${currentTheme.secondary} px-6 py-10 text-center`}>
-                  <p className={`font-medium ${currentTheme.text}`}>这个筛选组合暂时没有匹配表达</p>
-                  <p className={`mt-2 text-sm ${currentTheme.accent}`}>试试“全部功能”，或选择其他写作场景。</p>
+                  <p className={`font-medium ${currentTheme.text}`}>{curriculumError}</p>
                 </div>
               )}
               {visibleModules.map((mod) => {
-                const isCustom = mod.id === 'module_custom';
                 // Extract Chinese title and English subtitle if format is "中文 (English)"
                 const titleMatch = mod.title.match(/^(.*?)\s*\((.*?)\)$/);
                 const displayTitle = titleMatch ? titleMatch[1].trim() : mod.title;
-                const displaySub = titleMatch ? titleMatch[2].trim().toUpperCase() : (isCustom ? 'USER CONTENT' : 'FUNDAMENTAL');
+                const displaySub = titleMatch ? titleMatch[2].trim().toUpperCase() : 'SENTENCE PRACTICE';
 
                 // Calculate Mastery Progress for this module
                 let masteredCount = 0;
@@ -1198,18 +998,13 @@ function App() {
                     key={mod.id}
                     onClick={() => startModule(mod)}
                     className={`group relative flex items-center gap-4 px-6 py-5 rounded-2xl transition-all duration-500 ease-out overflow-hidden
-                      ${isCustom 
-                        ? `bg-transparent border-2 border-dashed ${currentTheme.secondary} hover:bg-black/[0.02] dark:hover:bg-white/[0.02]` 
-                        : `${currentTheme.cardBg} border border-transparent shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(255,255,255,0.01)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:hover:shadow-[0_8px_30px_rgb(255,255,255,0.02)] hover:-translate-y-1`
-                      }
+                      ${currentTheme.cardBg} border border-transparent shadow-[0_2px_10px_rgb(0,0,0,0.02)] dark:shadow-[0_2px_10px_rgb(255,255,255,0.01)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:hover:shadow-[0_8px_30px_rgb(255,255,255,0.02)] hover:-translate-y-1
                       ${isCompleted ? 'opacity-80' : ''}
                     `}
                   >
                     {/* Icon container */}
                     <div className={`flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full transition-colors duration-500
-                      ${isCustom ? `bg-black/5 dark:bg-white/5 ${currentTheme.text}` : 
-                        (isCompleted ? 'bg-green-500/10 text-green-600 dark:text-green-400' : `bg-black/5 dark:bg-white/5 ${currentTheme.text} group-hover:bg-black/10 dark:group-hover:bg-white/10`)
-                      }
+                      ${isCompleted ? 'bg-green-500/10 text-green-600 dark:text-green-400' : `bg-black/5 dark:bg-white/5 ${currentTheme.text} group-hover:bg-black/10 dark:group-hover:bg-white/10`}
                     `}>
                       {isCompleted ? (
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
@@ -1235,7 +1030,7 @@ function App() {
                       </span>
 
                       {/* Mastery Progress Bar */}
-                      {!isCustom && totalCount > 0 && (
+                      {totalCount > 0 && (
                         <div className="w-full mt-2.5 flex items-center gap-2 opacity-50 group-hover:opacity-100 transition-opacity duration-300">
                           <div className="flex-1 h-1 bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
                             <div 
@@ -1250,15 +1045,16 @@ function App() {
                       )}
                     </div>
 
-                    {/* Sentence Count (only show if custom or no progress to show) */}
-                    {(isCustom || totalCount === 0) && (
-                      <div className={`flex-shrink-0 text-xs font-mono font-medium ${currentTheme.text} opacity-30 group-hover:opacity-60 transition-opacity duration-300`}>
-                        {totalCount}
-                      </div>
-                    )}
                   </button>
                 );
               })}
+            </div>
+            <div className={`mt-10 border-t ${currentTheme.secondary} pt-6`}>
+              <h2 className={`text-sm font-semibold ${currentTheme.text}`}>自由练习</h2>
+              <p className={`mt-1 text-xs ${currentTheme.accent}`}>使用自己添加的中英句子练习，题量由你决定。</p>
+              <button type="button" onClick={() => startModule(customModule)} className={`mt-4 rounded-xl border ${currentTheme.secondary} px-5 py-3 text-sm ${currentTheme.text} hover:bg-black/5 dark:hover:bg-white/5`}>
+                打开自定义句库（{customModule.sentences.length} 句）
+              </button>
             </div>
           </div>
         ) : isEditing ? (
@@ -1405,17 +1201,6 @@ function App() {
           <div className={`w-full transition-all duration-500 ease-out transform ${isTransitioning ? 'opacity-0 scale-[0.97] blur-[4px] -translate-y-4' : 'opacity-100 scale-100 blur-0 translate-y-0'} flex flex-col items-center justify-center relative z-[60] pb-12`}>
             {currentQuestion ? (
               <div className="relative w-full flex flex-col items-center">
-                {currentQuestion.scenario && currentQuestion.argumentFunction && (
-                  <div className={`flex flex-wrap justify-center gap-2 text-xs ${currentTheme.accent}`}>
-                    <span className={`rounded-full border ${currentTheme.secondary} px-3 py-1`}>
-                      {WRITING_SCENARIOS.find((item) => item.id === currentQuestion.scenario)?.title || '大作文'}
-                    </span>
-                    <span className={`rounded-full border ${currentTheme.secondary} px-3 py-1`}>
-                      {ARGUMENT_FUNCTIONS.find((item) => item.id === currentQuestion.argumentFunction)?.title || '论证表达'}
-                    </span>
-                  </div>
-                )}
-                
                 {/* Top area: Combo & Progress */}
                 <div className="flex flex-col items-center justify-end min-h-[3rem] mb-6 mt-4 md:mt-8">
                   {/* Absolute positioning relative to the container ensures it sits exactly above progressText */}
