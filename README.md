@@ -47,7 +47,9 @@ Check backend and database readiness at `http://localhost:3000/api/health`.
 
 - Prisma's SQLite database is stored at `backend/prisma/dev.db`.
 - Do not run `db:seed:reset` against data you need to keep. It deliberately deletes curriculum, sentences, and sentence review progress before reseeding.
-- Production deployments need a managed backup and restore process before using persistent user data. The current schema and fixed local user ID are intended for a local single-user setup.
+- The local development schema uses SQLite; the server deployment uses a separate PostgreSQL schema and versioned migrations.
+- Practice APIs identify a browser with a signed cookie. This separates test users but does not provide login, account recovery, or cross-device sync.
+- Production deployments need external backups, restore practice, and an account system before using persistent user data.
 
 ## Build
 
@@ -56,4 +58,4 @@ npm run build
 npm run preview
 ```
 
-The current Vite proxy is for development only. A production deployment must route `/api` to the backend through its hosting or reverse-proxy configuration.
+The Vite proxy is for development only. After `npm run build`, Express serves `dist/` and the API on the same origin. The single-server Tencent Cloud staging setup is documented in [deploy/README.md](deploy/README.md).

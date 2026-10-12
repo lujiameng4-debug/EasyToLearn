@@ -3,6 +3,19 @@ import SentenceQuiz from './components/SentenceQuiz';
 import { customModuleTemplate } from './data/sentences';
 import { parseRawTextToLibrary, stringifyLibraryToRawText } from './utils/parser';
 
+let sessionReadyPromise;
+const ensurePracticeSession = () => {
+  if (!sessionReadyPromise) {
+    sessionReadyPromise = fetch('/api/session').then(res => {
+      if (!res.ok) throw new Error('练习会话初始化失败');
+    }).catch(error => {
+      sessionReadyPromise = null;
+      throw error;
+    });
+  }
+  return sessionReadyPromise;
+};
+
 // Define the Zen Themes
 const THEMES = [
   {
@@ -118,7 +131,7 @@ function App() {
   });
 
   const fetchDueReviews = useCallback(() => {
-    fetch('/api/review/today?userId=local_user')
+    fetch('/api/review/today')
       .then(res => res.json())
       .then(data => {
         setDueReviews(data);
@@ -129,7 +142,7 @@ function App() {
   }, []);
 
   const fetchGlobalStats = useCallback(() => {
-    fetch('/api/stats?userId=local_user')
+    fetch('/api/stats')
       .then(res => res.json())
       .then(data => {
         if (data && data.history) {
@@ -142,11 +155,11 @@ function App() {
                 fetch('/api/stats/sync', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ userId: 'local_user', ...localData })
+                  body: JSON.stringify(localData)
                 }).then(() => {
                   // Wait briefly then refetch
                   setTimeout(() => {
-                    fetch('/api/stats?userId=local_user')
+                    fetch('/api/stats')
                       .then(r => r.json())
                       .then(d => { if (d && d.history) setGlobalStats(d); });
                   }, 100);
@@ -169,8 +182,9 @@ function App() {
   }, []);
 
   useEffect(() => {
-    // Fetch standard curriculum
-    fetch('/api/curriculum')
+    // Establish one browser identity before starting parallel API requests.
+    ensurePracticeSession().then(() => {
+      fetch('/api/curriculum')
       .then(res => {
         if (!res.ok) throw new Error('题库加载失败，请确认后端已启动并完成题库初始化。');
         return res.json();
@@ -189,11 +203,12 @@ function App() {
         setIsDataLoaded(true);
       });
 
-    // Fetch due reviews
-    fetchDueReviews();
-
-    // Fetch global stats
-    fetchGlobalStats();
+      fetchDueReviews();
+      fetchGlobalStats();
+    }).catch(err => {
+      setCurriculumError(err.message);
+      setIsDataLoaded(true);
+    });
   }, [fetchDueReviews, fetchGlobalStats]);
 
   // Derived list of all available modules
@@ -270,7 +285,7 @@ function App() {
     fetch('/api/review/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: 'local_user', sentenceId, action })
+      body: JSON.stringify({ sentenceId, action })
     }).catch(err => console.error('Failed to update review:', err));
   }, []);
 
@@ -540,7 +555,7 @@ function App() {
     fetch('/api/stats/record', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: 'local_user' })
+      body: JSON.stringify({})
     })
       .then(res => res.json())
       .then(data => {

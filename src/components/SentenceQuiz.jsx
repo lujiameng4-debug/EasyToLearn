@@ -341,7 +341,7 @@ const SentenceQuiz = ({ question, onComplete, onMistake, theme, isAnalysisMode, 
     setDictData(null);
     try {
       const cleanWord = word.replace(/[^a-zA-Z'-]/g, '');
-      const response = await fetch(`http://localhost:3000/api/dictionary?word=${encodeURIComponent(cleanWord)}`);
+      const response = await fetch(`/api/dictionary?word=${encodeURIComponent(cleanWord)}`);
       if (response.ok) {
         const data = await response.json();
         setDictData(data);

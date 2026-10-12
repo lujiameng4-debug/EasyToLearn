@@ -186,7 +186,7 @@ async function main() {
           curriculumId: cur.id,
           chinese: sent.chinese,
           english_full: sent.english_full,
-          // Convert complex objects to JSON strings for SQLite storage
+          // Store the structured sentence data as JSON text in either database.
           words: JSON.stringify(sent.words),
           components: JSON.stringify(sent.components || []),
           analysis: JSON.stringify(sent.analysis || []),

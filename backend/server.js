@@ -1,14 +1,15 @@
 import express from 'express';
-import cors from 'cors';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import { validateReviewUpdate, validateStatsSync } from './validation.js';
+import { identifyPracticeUser } from './identity.js';
 
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '64kb' }));
 
 // Lightweight readiness check for local, CI, and deployment monitors.
 app.get('/api/health', async (req, res) => {
@@ -20,6 +21,9 @@ app.get('/api/health', async (req, res) => {
     res.status(503).json({ status: 'error', database: 'unavailable' });
   }
 });
+
+app.use('/api', identifyPracticeUser);
+app.get('/api/session', (req, res) => res.json({ ready: true }));
 
 // 词形变体解析工具 (用于解析 exchange 字段)
 const parseExchange = (exchangeStr) => {
@@ -162,7 +166,7 @@ const REVIEW_INTERVALS = [1, 3, 7, 15, 30];
 
 // API: 获取今日待复习句子
 app.get('/api/review/today', async (req, res) => {
-  const { userId = 'local_user' } = req.query;
+  const userId = req.practiceUserId;
   try {
     const today = new Date();
     const dueProgress = await prisma.userProgress.findMany({
@@ -199,9 +203,10 @@ app.get('/api/review/today', async (req, res) => {
 
 // API: 更新复习进度
 app.post('/api/review/update', async (req, res) => {
-  const { userId = 'local_user', sentenceId, action } = req.body;
+  const userId = req.practiceUserId;
+  const { sentenceId, action } = req.body;
   // action: 'correct', 'wrong', 'mastered', 'forgot'
-  const validationError = validateReviewUpdate(req.body);
+  const validationError = validateReviewUpdate({ userId, sentenceId, action });
   if (validationError) return res.status(400).json({ error: validationError });
 
   try {
@@ -257,7 +262,7 @@ app.post('/api/review/update', async (req, res) => {
 
 // API: 获取全局统计信息 (Streak, History)
 app.get('/api/stats', async (req, res) => {
-  const { userId = 'local_user' } = req.query;
+  const userId = req.practiceUserId;
   try {
     let user = await prisma.user.findUnique({ where: { userId } });
     if (!user) {
@@ -282,7 +287,7 @@ app.get('/api/stats', async (req, res) => {
 
 // API: 记录完成的句子，更新每日数据与Streak
 app.post('/api/stats/record', async (req, res) => {
-  const { userId = 'local_user' } = req.body;
+  const userId = req.practiceUserId;
 
   if (typeof userId !== 'string' || !userId.trim()) {
     return res.status(400).json({ error: 'userId must be a non-empty string' });
@@ -345,8 +350,9 @@ app.post('/api/stats/record', async (req, res) => {
 
 // API: 同步本地历史数据到数据库
 app.post('/api/stats/sync', async (req, res) => {
-  const { userId = 'local_user', history = {}, lastActiveDate, currentStreak } = req.body;
-  const validationError = validateStatsSync(req.body);
+  const userId = req.practiceUserId;
+  const { history = {}, lastActiveDate, currentStreak } = req.body;
+  const validationError = validateStatsSync({ userId, history, lastActiveDate, currentStreak });
   if (validationError) return res.status(400).json({ error: validationError });
   try {
     let user = await prisma.user.findUnique({ where: { userId } });
@@ -376,7 +382,17 @@ app.post('/api/stats/sync', async (req, res) => {
   }
 });
 
+app.use('/api', (req, res) => res.status(404).json({ error: 'API endpoint not found' }));
+
+const distDir = resolve(process.cwd(), 'dist');
+if (existsSync(resolve(distDir, 'index.html'))) {
+  app.use(express.static(distDir));
+  app.use((req, res, next) => {
+    if (req.method !== 'GET') return next();
+    res.sendFile(resolve(distDir, 'index.html'));
+  });
+}
+
 app.listen(PORT, () => {
-  console.log(`🚀 Backend is running on http://localhost:${PORT}`);
-  console.log(`- Fetch sentences: http://localhost:${PORT}/api/curriculum`);
+  console.log(`Backend listening on port ${PORT}`);
 });
