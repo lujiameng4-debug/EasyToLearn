@@ -63,3 +63,16 @@ model DailyStats {
 
   @@unique([userId, date])
 }
+
+// 字典表 (本地离线词库)
+model Dictionary {
+  id          String   @id @default(uuid())
+  word        String   @unique // 单词原形 (全小写)
+  phonetic    String?  // 音标
+  translation String   // 中文释义，例如 "n. 苹果; 公司"
+  definition  String?  // 英文释义 (可选)
+  pos         String?  // 词性分类，如 "n. v. adj."
+  exchange    String?  // 词形变化，格式例如 "p:apples/d:appled" (根据开源词典格式)
+  
+  @@index([word])
+}

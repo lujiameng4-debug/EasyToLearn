@@ -48,6 +48,11 @@ export const parseRawTextToLibrary = (rawText) => {
         punctuation = puncMatch[1];
         word = rawWord.slice(0, -punctuation.length);
       }
+
+      // Remove trailing periods from sentences entirely as requested
+      if (index === rawWords.length - 1 && punctuation === '.') {
+        punctuation = '';
+      }
       
       // Auto-capitalize the very first letter of the sentence
       if (index === 0 && word.length > 0) {
@@ -76,10 +81,18 @@ export const parseRawTextToLibrary = (rawText) => {
 export const stringifyLibraryToRawText = (library) => {
   if (!library || library.length === 0) return '';
   return library.map(item => {
-    const english = item.words.map(w => `${w.word}${w.punctuation}`).join(' ');
+    const english = item.english_full || (item.words || [])
+      .map(w => typeof w === 'string' ? w : `${w?.word || ''}${w?.punctuation || ''}`)
+      .filter(Boolean)
+      .join(' ');
     let block = `${item.chinese}\n${english}`;
     if (item.analysis && item.analysis.length > 0) {
-      block += '\n' + item.analysis.map(a => `# ${a}`).join('\n');
+      const analysisLines = item.analysis
+        .map(item => typeof item === 'string' ? item : item?.text || item?.description || '')
+        .filter(Boolean);
+      if (analysisLines.length > 0) {
+        block += '\n' + analysisLines.map(text => `# ${text}`).join('\n');
+      }
     }
     return block;
   }).join('\n\n');

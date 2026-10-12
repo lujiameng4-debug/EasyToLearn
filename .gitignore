@@ -1,6 +1,12 @@
 node_modules
 dist
 .env
+backend/.env
 backend/node_modules
 backend/prisma/dev.db
 backend/prisma/dev.db-journal
+.DS_Store
+backend/*.log
+backend/prisma/ecdict.csv
+backend/prisma/.ecdict-download-tmp/
+*.code-workspace

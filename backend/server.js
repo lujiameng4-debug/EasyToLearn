@@ -1,11 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { validateReviewUpdate, validateStatsSync } from './validation.js';
+import { evaluateParagraph } from './writingEvaluation.js';
 
 const app = express();
 const prisma = new PrismaClient();
@@ -13,9 +10,119 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+app.post('/api/writing/evaluate', evaluateParagraph);
 
-// Serve static frontend files
-app.use(express.static(path.join(__dirname, '../dist')));
+// Lightweight readiness check for local, CI, and deployment monitors.
+app.get('/api/health', async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ok', database: 'ok' });
+  } catch (error) {
+    console.error('Health check failed:', error);
+    res.status(503).json({ status: 'error', database: 'unavailable' });
+  }
+});
+
+// 词形变体解析工具 (用于解析 exchange 字段)
+const parseExchange = (exchangeStr) => {
+  if (!exchangeStr) return [];
+  const map = {
+    'p': '过去式',
+    'd': '过去分词',
+    'i': '现在分词',
+    '3': '第三人称单数',
+    's': '复数形式',
+    'r': '比较级',
+    't': '最高级',
+    '0': '原形'
+  };
+  const parts = exchangeStr.split('/');
+  const result = [];
+  parts.forEach(part => {
+    const [key, val] = part.split(':');
+    if (key && val && map[key]) {
+      result.push({ type: map[key], word: val });
+    }
+  });
+  return result;
+};
+
+// API: 字典查询接口
+app.get('/api/dictionary', async (req, res) => {
+  let { word } = req.query;
+  if (!word) return res.status(400).json({ error: 'Word is required' });
+  
+  word = word.toLowerCase().replace(/[^a-z0-9'-]/g, '');
+  if (!word) return res.status(400).json({ error: 'Invalid word' });
+
+  try {
+    let entry = await prisma.dictionary.findUnique({
+      where: { word: word }
+    });
+
+    if (!entry) {
+      const candidates = await prisma.dictionary.findMany({
+        where: {
+          exchange: {
+            contains: `:${word}`
+          }
+        },
+        take: 1
+      });
+      if (candidates.length > 0) {
+        entry = candidates[0];
+      }
+    }
+
+    // 处理连字符单词的 Fallback (例如 post-pandemic -> pandemic)
+    if (!entry && word.includes('-')) {
+      const parts = word.split('-');
+      console.log('Fallback for hyphenated word:', word, 'parts:', parts);
+      // 从后往前找核心词汇
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const part = parts[i];
+        if (part) {
+          entry = await prisma.dictionary.findUnique({
+            where: { word: part }
+          });
+          console.log('Checking part:', part, 'entry found:', !!entry);
+          if (!entry) {
+            const candidates = await prisma.dictionary.findMany({
+              where: { exchange: { contains: `:${part}` } },
+              take: 1
+            });
+            if (candidates.length > 0) entry = candidates[0];
+          }
+          if (entry) {
+            // 找到了连字符单词的某一部分
+            console.log('Found fallback entry:', entry.word);
+            break;
+          }
+        }
+      }
+    }
+
+    if (!entry) {
+      return res.status(404).json({ error: 'Word not found' });
+    }
+
+    const exchangeData = parseExchange(entry.exchange);
+    
+    res.json({
+      word: entry.word,
+      phonetic: entry.phonetic ? `/${entry.phonetic}/` : null,
+      translation: entry.translation.replace(/\\n/g, '; '),
+      definition: entry.definition,
+      pos: entry.pos,
+      exchange: exchangeData,
+      isVariant: word !== entry.word ? true : false,
+      queriedWord: word
+    });
+  } catch (error) {
+    console.error('Dictionary API Error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // API: 获取完整课程与题库
 app.get('/api/curriculum', async (req, res) => {
@@ -92,6 +199,9 @@ app.get('/api/review/today', async (req, res) => {
 app.post('/api/review/update', async (req, res) => {
   const { userId = 'local_user', sentenceId, action } = req.body;
   // action: 'correct', 'wrong', 'mastered', 'forgot'
+  const validationError = validateReviewUpdate(req.body);
+  if (validationError) return res.status(400).json({ error: validationError });
+
   try {
     let progress = await prisma.userProgress.findUnique({
       where: { userId_sentenceId: { userId, sentenceId } }
@@ -171,6 +281,10 @@ app.get('/api/stats', async (req, res) => {
 // API: 记录完成的句子，更新每日数据与Streak
 app.post('/api/stats/record', async (req, res) => {
   const { userId = 'local_user' } = req.body;
+
+  if (typeof userId !== 'string' || !userId.trim()) {
+    return res.status(400).json({ error: 'userId must be a non-empty string' });
+  }
   
   // 以当地时区获取 YYYY-MM-DD
   const today = new Date();
@@ -230,6 +344,8 @@ app.post('/api/stats/record', async (req, res) => {
 // API: 同步本地历史数据到数据库
 app.post('/api/stats/sync', async (req, res) => {
   const { userId = 'local_user', history = {}, lastActiveDate, currentStreak } = req.body;
+  const validationError = validateStatsSync(req.body);
+  if (validationError) return res.status(400).json({ error: validationError });
   try {
     let user = await prisma.user.findUnique({ where: { userId } });
     if (!user) {
@@ -258,13 +374,7 @@ app.post('/api/stats/sync', async (req, res) => {
   }
 });
 
-// Fallback for React Router (if used in future) and to serve the main index.html for non-API routes
-app.use((req, res) => {
-  res.sendFile(path.join(__dirname, '../dist/index.html'));
-});
-
 app.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-  console.log(`- Frontend is served from this port in production.`);
+  console.log(`🚀 Backend is running on http://localhost:${PORT}`);
   console.log(`- Fetch sentences: http://localhost:${PORT}/api/curriculum`);
 });
